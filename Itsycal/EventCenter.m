@@ -442,6 +442,9 @@ static NSString *kSelectedCalendars = @"SelectedCalendars";
                      || [link containsString:@"youcanbook.me/zoom/"]) {
                 info.zoomURL = result.URL;
             }
+            else if ( [link containsString:@"workplace.com/groupcall"]) {
+                info.zoomURL = result.URL;
+            }
             *stop = info.zoomURL != nil;
         }];
     };
