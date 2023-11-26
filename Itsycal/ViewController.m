@@ -496,7 +496,39 @@
     if (iconText == nil) {
         iconText = @"!!";
     }
+
+    iconText = [self menuIconMeetingText];
     return iconText;
+}
+
+- (NSString *)menuIconMeetingText
+{
+    NSString *nextMeetingText;
+    // Get next meeting
+    EventInfo *nextMeeting = [self getNextEventToday];
+    
+    // If no events found then return default title
+    if (nextMeeting == nil) {
+        nextMeetingText = @"No more meetings!";
+    } else {
+        // Get menu text from event in format - "hh:mm <first 20 chars of title>"
+        NSString *title = [NSString stringWithFormat:@"%@", nextMeeting.event.title];
+        NSDate *startDate = nextMeeting.event.startDate;
+        
+        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+        [formatter setDateFormat:@"HH:mm"];
+        
+        NSString *truncatedTitle = title;
+        if ([title length] >= 20)
+        {
+            truncatedTitle = [title substringToIndex:20];
+        }
+        
+        NSString *time = [formatter stringFromDate:startDate];
+        nextMeetingText = [NSString stringWithFormat:@"%@ %@", time, truncatedTitle];
+    }
+    
+    return nextMeetingText;
 }
 
 - (void)updateMenubarIcon
@@ -1063,6 +1095,29 @@
     }
 }
 
+- (EventInfo *)getNextEventToday {
+    EventInfo *nextEvent = nil;
+    MoDate currentMoDate = [self todayDate];
+    NSDate *currentDate = [NSDate date];
+    NSArray *events = [self eventsForDate:[self todayDate]];
+
+    // Sort the events by start date
+    NSArray *sortedEvents = [events sortedArrayUsingComparator:^NSComparisonResult(EventInfo *event1, EventInfo *event2) {
+        return [event1.event.startDate compare:event2.event.startDate];
+    }];
+
+    for (EventInfo *info in sortedEvents) {
+        // Check if the event is upcoming
+        if ([info.event.startDate compare:currentDate] == NSOrderedDescending) {
+            nextEvent = info;
+            break;
+        }
+    }
+    
+    return nextEvent;
+}
+
+
 - (float)volumeRelativeToSystemVolumeWithCap:(float)cap
 {
     // https://stackoverflow.com/a/8953438/111418
@@ -1143,7 +1198,37 @@
         _inactiveTime = 0;
     }
     // Update clock if necessary.
-    if (_clockUsesTime) [self updateMenubarIcon];
+    [self updateMenubarIcon];
+    [self launchMeetingIfNeeded];
+}
+
+- (void)launchMeetingIfNeeded
+{
+    NSString *nextMeetingText;
+    // Get next meeting
+    EventInfo *nextMeeting = [self getNextEventToday];
+    
+    // If no events found then return default title
+    if (nextMeeting != nil) {
+        NSDate *startDate = nextMeeting.event.startDate;
+        NSDate *currentDate = [NSDate date];
+        
+        NSUInteger components = NSCalendarUnitHour | NSCalendarUnitMinute;
+        NSDateComponents *startDateComponents = [_nsCal components:components fromDate:startDate];
+        NSDateComponents *currentDateComponents = [_nsCal components:components fromDate:currentDate];
+        
+        BOOL areSameMinute = [startDateComponents minute] == [currentDateComponents minute] + 1 &&
+        [startDateComponents hour] == [currentDateComponents hour];
+        
+        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+        [formatter setDateFormat:@"HH:mm"];
+        
+        if (areSameMinute) {
+            //NSLog(@"The dates are in the same minute.");
+            [NSWorkspace.sharedWorkspace openURL:nextMeeting.zoomURL];
+        }
+    }
+    
 }
 
 #pragma mark -
